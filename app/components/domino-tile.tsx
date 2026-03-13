@@ -52,6 +52,7 @@ export function VisibleDomino({
 
   const content = (
     <>
+      <div className="domino-face__shine" aria-hidden="true" />
       <DominoHalf value={values[0]} />
       <div className="domino-face__divider" />
       <DominoHalf value={values[1]} />
@@ -84,6 +85,7 @@ export function HiddenDomino({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`domino-back ${compact ? "domino-back--compact" : ""}`}>
       <div className="domino-back__shine" />
+      <div className="domino-back__seal" aria-hidden="true" />
     </div>
   );
 }

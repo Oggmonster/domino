@@ -397,43 +397,74 @@ export default function Home() {
         ? "Round to you"
         : "Round to CPU";
   const intermissionLabel = game.matchWinner ? "New match deals in" : "Next round deals in";
+  const turnLabel = game.phase === "intermission" ? "Intermission" : nameFor(game.currentPlayer);
+  const playableTileCount = playableTileIds.size;
+  const endsLabel = boardEnds
+    ? `${boardEnds.left} / ${boardEnds.right}`
+    : game.requiredOpeningTileId
+      ? "Opening tile required"
+      : "Start the chain";
+  const moveGuide =
+    game.phase === "intermission"
+      ? game.matchWinner
+        ? "Wins are recorded. A fresh match starts after the countdown."
+        : `Next round deals automatically in ${intermissionCountdown}.`
+      : game.currentPlayer === "cpu"
+        ? "CPU is taking its turn."
+        : !boardEnds && game.requiredOpeningTileId
+          ? "You won the opening. Place the required tile on the start slot."
+          : canPass
+            ? "No legal move is available. Pass to hand the turn to CPU."
+            : playableTileCount > 0
+              ? `${playableTileCount} playable tile${
+                  playableTileCount === 1 ? "" : "s"
+                }. Drag one to a glowing end.`
+              : "Drag a tile onto the board.";
+  const playerActionLabel =
+    game.phase === "intermission"
+      ? intermissionLabel
+      : canPass
+        ? "Pass available"
+        : game.currentPlayer === "human"
+          ? "Your move"
+          : "CPU turn";
 
   return (
-    <main className="table-shell table-shell--wide">
-      <section className="glass-panel match-bar">
-        <div className="match-bar__intro">
-          <p className="eyebrow">Single-player domino match</p>
+    <main className="app-shell">
+      <section className="glass-panel hero-panel">
+        <div className="hero-panel__brand">
+          <p className="eyebrow">Single-player dominoes</p>
           <h1>Domino Duel</h1>
           <p className="hero-copy">
-            Drag tiles onto either open end. If neither player can move and both pass, the lower
-            pip total wins the round. First to {MATCH_TARGET} wins the match.
+            Drag onto either open end. Pass only when nothing fits. First to {MATCH_TARGET} wins
+            the match.
           </p>
         </div>
 
-        <div className="score-grid score-grid--match">
-          <article className="score-card score-card--emphasis">
+        <div className="hero-panel__scores">
+          <article className="hero-score hero-score--primary">
             <span className="score-card__label">Player</span>
             <strong>{game.matchScore.human}</strong>
             <span className="score-card__meta">Match points</span>
           </article>
-          <article className="score-card score-card--emphasis">
+          <article className="hero-score hero-score--primary">
             <span className="score-card__label">CPU</span>
             <strong>{game.matchScore.cpu}</strong>
             <span className="score-card__meta">Match points</span>
           </article>
-          <article className="score-card">
+          <article className="hero-score">
             <span className="score-card__label">Player</span>
             <strong>{wins.human}</strong>
             <span className="score-card__meta">Matches won</span>
           </article>
-          <article className="score-card">
+          <article className="hero-score">
             <span className="score-card__label">CPU</span>
             <strong>{wins.cpu}</strong>
             <span className="score-card__meta">Matches won</span>
           </article>
         </div>
 
-        <div className="match-bar__controls">
+        <div className="hero-panel__controls">
           <button type="button" className="primary-button" onClick={startNextRound}>
             {game.phase === "intermission"
               ? game.matchWinner
@@ -450,209 +481,242 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="glass-panel table-panel">
-        <div className="table-toolbar">
-          <div>
-            <p className="panel-title">Table status</p>
-            <p className="status-copy">{game.status}</p>
+      <section className="glass-panel play-surface">
+        <div className="surface-layout">
+          <div className="table-stage">
+            <section className="rack-panel rack-panel--cpu">
+              <div className="rack-panel__header">
+                <div>
+                  <p className="panel-title">CPU rack</p>
+                  <p className="hand-meta">
+                    {game.cpuHand.length} tiles
+                    {game.phase === "intermission" ? `, ${handPipTotal(game.cpuHand)} pips` : ""}
+                  </p>
+                </div>
+                <span className="rack-panel__flag">
+                  {game.phase === "intermission" ? "Revealed" : "Hidden"}
+                </span>
+              </div>
+
+              <div className="rack__tiles rack__tiles--cpu">
+                {game.cpuHand.map((tile) =>
+                  game.phase === "intermission" ? (
+                    <VisibleDomino
+                      key={tile.id}
+                      values={[tile.a, tile.b]}
+                      compact
+                      ariaLabel={`CPU tile ${describeTile(tile)}`}
+                    />
+                  ) : (
+                    <HiddenDomino key={tile.id} compact />
+                  ),
+                )}
+              </div>
+            </section>
+
+            <section className="board-stage">
+              <div className="board-stage__header">
+                <div>
+                  <p className="panel-title">Board</p>
+                  <p className="board-note">
+                    Drag a glowing tile to an open end. Two consecutive passes end the round.
+                  </p>
+                </div>
+
+                <div className="board-stage__chips">
+                  {boardEnds ? (
+                    <>
+                      <span className="end-cap">Left {boardEnds.left}</span>
+                      <span className="end-cap">Right {boardEnds.right}</span>
+                    </>
+                  ) : (
+                    <span className="end-cap">Opening move</span>
+                  )}
+                </div>
+              </div>
+
+              <div
+                className="board-canvas"
+                style={{
+                  gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${BOARD_ROWS}, minmax(0, 1fr))`,
+                }}
+              >
+                {dropSlots.left && boardEnds ? (
+                  <div
+                    ref={leftDropRef}
+                    className={[
+                      "drop-slot",
+                      drag ? `drop-slot--${dropState.left}` : "",
+                      drag?.overSide === "left" ? "drop-slot--hovered" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{
+                      gridColumn: dropSlots.left.x + 1,
+                      gridRow: dropSlots.left.y + 1,
+                    }}
+                  >
+                    <span>{boardEnds.left}</span>
+                  </div>
+                ) : null}
+
+                {dropSlots.right && boardEnds ? (
+                  <div
+                    ref={rightDropRef}
+                    className={[
+                      "drop-slot",
+                      drag ? `drop-slot--${dropState.right}` : "",
+                      drag?.overSide === "right" ? "drop-slot--hovered" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{
+                      gridColumn: dropSlots.right.x + 1,
+                      gridRow: dropSlots.right.y + 1,
+                    }}
+                  >
+                    <span>{boardEnds.right}</span>
+                  </div>
+                ) : null}
+
+                {!boardEnds && game.phase === "playing" && game.currentPlayer === "human" ? (
+                  <div
+                    ref={rightDropRef}
+                    className={[
+                      "drop-slot",
+                      drag ? `drop-slot--${dropState.right}` : "",
+                      drag?.overSide === "right" ? "drop-slot--hovered" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{
+                      gridColumn: BOARD_PATH[BOARD_ANCHOR].x + 1,
+                      gridRow: BOARD_PATH[BOARD_ANCHOR].y + 1,
+                    }}
+                  >
+                    <span>Start</span>
+                  </div>
+                ) : null}
+
+                {boardLayout.map((entry, index) => (
+                  <div
+                    key={`${entry.tile.tile.id}-${index}`}
+                    className="board-node"
+                    style={{
+                      gridColumn: entry.x + 1,
+                      gridRow: entry.y + 1,
+                    }}
+                  >
+                    <VisibleDomino
+                      values={
+                        entry.flipped
+                          ? [entry.tile.right, entry.tile.left]
+                          : [entry.tile.left, entry.tile.right]
+                      }
+                      compact
+                      orientation={entry.orientation}
+                      className="board-node__tile"
+                      ariaLabel={`Board tile ${entry.tile.left}-${entry.tile.right}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rack-panel rack-panel--player">
+              <div className="rack-panel__header">
+                <div>
+                  <p className="panel-title">Your rack</p>
+                  <p className="hand-meta">
+                    {game.humanHand.length} tiles, {handPipTotal(game.humanHand)} pips
+                  </p>
+                </div>
+                <span className="rack-panel__flag">{playerActionLabel}</span>
+              </div>
+
+              <div className="rack__tiles rack__tiles--player">
+                {game.humanHand.map((tile) => (
+                  <VisibleDomino
+                    key={tile.id}
+                    values={[tile.a, tile.b]}
+                    onPointerDown={
+                      playableTileIds.has(tile.id)
+                        ? (event) => handlePointerDown(event, tile)
+                        : undefined
+                    }
+                    selected={drag?.tileId === tile.id}
+                    playable={playableTileIds.has(tile.id)}
+                    dimmed={humanMoves.length > 0 && !playableTileIds.has(tile.id)}
+                    className="rack-tile"
+                    ariaLabel={`Your tile ${describeTile(tile)}`}
+                  />
+                ))}
+              </div>
+
+              <div className="rack__actions">
+                <p className="hand-meta">
+                  {canPass
+                    ? "No legal move available. Pass to hand the turn to CPU."
+                    : "Pass becomes available only when none of your tiles fit the board."}
+                </p>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handlePass}
+                  disabled={!canPass}
+                >
+                  Pass
+                </button>
+              </div>
+            </section>
           </div>
-          <div className="state-chip-row">
-            <span className="state-chip">
-              Turn: {game.phase === "intermission" ? "Intermission" : nameFor(game.currentPlayer)}
-            </span>
-            <span className="state-chip">Boneyard: {game.stock.length}</span>
-            <span className="state-chip">Your pips: {handPipTotal(game.humanHand)}</span>
-            <span className="state-chip">Target: {MATCH_TARGET}</span>
-          </div>
+
+          <aside className="side-rail">
+            <section className="rail-card rail-card--status" aria-live="polite">
+              <p className="eyebrow">Round state</p>
+              <h2>{turnLabel}</h2>
+              <p className="rail-copy">{game.status}</p>
+            </section>
+
+            <section className="rail-card">
+              <div className="fact-grid">
+                <article className="fact-stat">
+                  <span>Open ends</span>
+                  <strong>{endsLabel}</strong>
+                </article>
+                <article className="fact-stat">
+                  <span>Boneyard</span>
+                  <strong>{game.stock.length}</strong>
+                </article>
+                <article className="fact-stat">
+                  <span>Your pips</span>
+                  <strong>{handPipTotal(game.humanHand)}</strong>
+                </article>
+                <article className="fact-stat">
+                  <span>Target</span>
+                  <strong>{MATCH_TARGET}</strong>
+                </article>
+              </div>
+              <p className="rail-note">{moveGuide}</p>
+            </section>
+
+            <section className="rail-card rail-card--activity">
+              <div className="rail-card__header">
+                <p className="panel-title">Recent plays</p>
+                <span className="state-chip">Latest {latestEvents.length}</span>
+              </div>
+              <div className="activity-list">
+                {latestEvents.map((entry, index) => (
+                  <article key={`${index}-${entry}`} className="activity-item">
+                    <span className="activity-item__index">0{index + 1}</span>
+                    <p>{entry}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </aside>
         </div>
-
-        <section className="rack rack--cpu">
-          <div className="rack__header">
-            <div>
-              <p className="panel-title">CPU rack</p>
-              <p className="hand-meta">
-                {game.cpuHand.length} tiles
-                {game.phase === "intermission" ? `, ${handPipTotal(game.cpuHand)} pips` : ""}
-              </p>
-            </div>
-          </div>
-
-          <div className="rack__tiles rack__tiles--cpu">
-            {game.cpuHand.map((tile) =>
-              game.phase === "intermission" ? (
-                <VisibleDomino
-                  key={tile.id}
-                  values={[tile.a, tile.b]}
-                  compact
-                  ariaLabel={`CPU tile ${describeTile(tile)}`}
-                />
-              ) : (
-                <HiddenDomino key={tile.id} compact />
-              ),
-            )}
-          </div>
-        </section>
-
-        <section className="board-area">
-          <div className="board-area__header">
-            <div>
-              <p className="panel-title">Board</p>
-              <p className="hand-meta">
-                Drag any tile to an end. If nothing fits, pass. Two consecutive passes end the
-                round.
-              </p>
-            </div>
-
-            {boardEnds ? (
-              <div className="end-caps">
-                <span className="end-cap">Left {boardEnds.left}</span>
-                <span className="end-cap">Right {boardEnds.right}</span>
-              </div>
-            ) : null}
-          </div>
-
-          <div
-            className="board-canvas"
-            style={{
-              gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${BOARD_ROWS}, minmax(0, 1fr))`,
-            }}
-          >
-            {dropSlots.left && boardEnds ? (
-              <div
-                ref={leftDropRef}
-                className={[
-                  "drop-slot",
-                  drag ? `drop-slot--${dropState.left}` : "",
-                  drag?.overSide === "left" ? "drop-slot--hovered" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{
-                  gridColumn: dropSlots.left.x + 1,
-                  gridRow: dropSlots.left.y + 1,
-                }}
-              >
-                <span>{boardEnds.left}</span>
-              </div>
-            ) : null}
-
-            {dropSlots.right && boardEnds ? (
-              <div
-                ref={rightDropRef}
-                className={[
-                  "drop-slot",
-                  drag ? `drop-slot--${dropState.right}` : "",
-                  drag?.overSide === "right" ? "drop-slot--hovered" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{
-                  gridColumn: dropSlots.right.x + 1,
-                  gridRow: dropSlots.right.y + 1,
-                }}
-              >
-                <span>{boardEnds.right}</span>
-              </div>
-            ) : null}
-
-            {!boardEnds && game.phase === "playing" && game.currentPlayer === "human" ? (
-              <div
-                ref={rightDropRef}
-                className={[
-                  "drop-slot",
-                  drag ? `drop-slot--${dropState.right}` : "",
-                  drag?.overSide === "right" ? "drop-slot--hovered" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{
-                  gridColumn: BOARD_PATH[BOARD_ANCHOR].x + 1,
-                  gridRow: BOARD_PATH[BOARD_ANCHOR].y + 1,
-                }}
-              >
-                <span>Start</span>
-              </div>
-            ) : null}
-
-            {boardLayout.map((entry, index) => (
-              <div
-                key={`${entry.tile.tile.id}-${index}`}
-                className="board-node"
-                style={{
-                  gridColumn: entry.x + 1,
-                  gridRow: entry.y + 1,
-                }}
-              >
-                <VisibleDomino
-                  values={
-                    entry.flipped
-                      ? [entry.tile.right, entry.tile.left]
-                      : [entry.tile.left, entry.tile.right]
-                  }
-                  compact
-                  orientation={entry.orientation}
-                  className="board-node__tile"
-                  ariaLabel={`Board tile ${entry.tile.left}-${entry.tile.right}`}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="activity-strip">
-          {latestEvents.map((entry, index) => (
-            <span key={`${index}-${entry}`} className="activity-pill">
-              {entry}
-            </span>
-          ))}
-        </div>
-
-        <section className="rack rack--player">
-          <div className="rack__header">
-            <div>
-              <p className="panel-title">Your rack</p>
-              <p className="hand-meta">
-                {game.humanHand.length} tiles, {handPipTotal(game.humanHand)} pips
-              </p>
-            </div>
-          </div>
-
-          <div className="rack__tiles rack__tiles--player">
-            {game.humanHand.map((tile, index) => (
-              <VisibleDomino
-                key={tile.id}
-                values={[tile.a, tile.b]}
-                onPointerDown={
-                  playableTileIds.has(tile.id)
-                    ? (event) => handlePointerDown(event, tile)
-                    : undefined
-                }
-                selected={drag?.tileId === tile.id}
-                playable={playableTileIds.has(tile.id)}
-                dimmed={humanMoves.length > 0 && !playableTileIds.has(tile.id)}
-                className={`rack-tile rack-tile--${index % 3}`}
-                ariaLabel={`Your tile ${describeTile(tile)}`}
-              />
-            ))}
-          </div>
-
-          <div className="rack__actions">
-            <p className="hand-meta">
-              {canPass
-                ? "No legal move available. Pass to hand the turn to CPU."
-                : "Pass becomes available only when none of your tiles fit the board."}
-            </p>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={handlePass}
-              disabled={!canPass}
-            >
-              Pass
-            </button>
-          </div>
-        </section>
 
         {game.phase === "intermission" && game.roundOutcome ? (
           <div className="intermission-screen">
