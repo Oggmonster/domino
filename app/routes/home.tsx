@@ -404,6 +404,14 @@ export default function Home() {
     : game.requiredOpeningTileId
       ? "Opening tile required"
       : "Start the chain";
+  const roundIndicator =
+    game.phase === "intermission"
+      ? intermissionLabel
+      : canPass
+        ? "Pass available"
+        : game.currentPlayer === "human"
+          ? `${playableTileCount} playable`
+          : "CPU thinking";
   const moveGuide =
     game.phase === "intermission"
       ? game.matchWinner
@@ -416,68 +424,22 @@ export default function Home() {
           : canPass
             ? "No legal move is available. Pass to hand the turn to CPU."
             : playableTileCount > 0
-              ? `${playableTileCount} playable tile${
-                  playableTileCount === 1 ? "" : "s"
-                }. Drag one to a glowing end.`
+            ? `${playableTileCount} playable tile${
+                playableTileCount === 1 ? "" : "s"
+              }. Drag one to a glowing end.`
               : "Drag a tile onto the board.";
-  const playerActionLabel =
-    game.phase === "intermission"
-      ? intermissionLabel
-      : canPass
-        ? "Pass available"
-        : game.currentPlayer === "human"
-          ? "Your move"
-          : "CPU turn";
+  const sessionWinsLabel = `${wins.human}-${wins.cpu}`;
 
   return (
     <main className="app-shell">
-      <section className="glass-panel hero-panel">
-        <div className="hero-panel__brand">
+      <section className="glass-panel topbar">
+        <div className="topbar__brand">
           <p className="eyebrow">Single-player dominoes</p>
           <h1>Domino Duel</h1>
-          <p className="hero-copy">
-            Drag onto either open end. Pass only when nothing fits. First to {MATCH_TARGET} wins
-            the match.
-          </p>
         </div>
-
-        <div className="hero-panel__scores">
-          <article className="hero-score hero-score--primary">
-            <span className="score-card__label">Player</span>
-            <strong>{game.matchScore.human}</strong>
-            <span className="score-card__meta">Match points</span>
-          </article>
-          <article className="hero-score hero-score--primary">
-            <span className="score-card__label">CPU</span>
-            <strong>{game.matchScore.cpu}</strong>
-            <span className="score-card__meta">Match points</span>
-          </article>
-          <article className="hero-score">
-            <span className="score-card__label">Player</span>
-            <strong>{wins.human}</strong>
-            <span className="score-card__meta">Matches won</span>
-          </article>
-          <article className="hero-score">
-            <span className="score-card__label">CPU</span>
-            <strong>{wins.cpu}</strong>
-            <span className="score-card__meta">Matches won</span>
-          </article>
-        </div>
-
-        <div className="hero-panel__controls">
-          <button type="button" className="primary-button" onClick={startNextRound}>
-            {game.phase === "intermission"
-              ? game.matchWinner
-                ? "Start new match now"
-                : "Deal next round now"
-              : "Redeal round"}
-          </button>
-          <button type="button" className="secondary-button" onClick={resetCurrentMatch}>
-            Reset match
-          </button>
-          <button type="button" className="secondary-button" onClick={resetWins}>
-            Reset wins
-          </button>
+        <div className="topbar__meta">
+          <span className="topbar-chip">First to {MATCH_TARGET}</span>
+          <span className="topbar-chip topbar-chip--active">{turnLabel}</span>
         </div>
       </section>
 
@@ -518,20 +480,12 @@ export default function Home() {
               <div className="board-stage__header">
                 <div>
                   <p className="panel-title">Board</p>
-                  <p className="board-note">
-                    Drag a glowing tile to an open end. Two consecutive passes end the round.
-                  </p>
+                  <p className="board-note">{moveGuide}</p>
                 </div>
 
                 <div className="board-stage__chips">
-                  {boardEnds ? (
-                    <>
-                      <span className="end-cap">Left {boardEnds.left}</span>
-                      <span className="end-cap">Right {boardEnds.right}</span>
-                    </>
-                  ) : (
-                    <span className="end-cap">Opening move</span>
-                  )}
+                  <span className="end-cap">{endsLabel}</span>
+                  <span className="end-cap">{roundIndicator}</span>
                 </div>
               </div>
 
@@ -632,7 +586,9 @@ export default function Home() {
                     {game.humanHand.length} tiles, {handPipTotal(game.humanHand)} pips
                   </p>
                 </div>
-                <span className="rack-panel__flag">{playerActionLabel}</span>
+                <span className="rack-panel__flag">
+                  {game.currentPlayer === "human" ? "Your move" : "Waiting"}
+                </span>
               </div>
 
               <div className="rack__tiles rack__tiles--player">
@@ -677,28 +633,25 @@ export default function Home() {
               <p className="eyebrow">Round state</p>
               <h2>{turnLabel}</h2>
               <p className="rail-copy">{game.status}</p>
+              <p className="rail-note">{moveGuide}</p>
             </section>
 
-            <section className="rail-card">
-              <div className="fact-grid">
-                <article className="fact-stat">
-                  <span>Open ends</span>
-                  <strong>{endsLabel}</strong>
+            <section className="rail-card rail-card--score">
+              <div className="rail-card__header">
+                <p className="panel-title">Match</p>
+                <span className="state-chip">Target {MATCH_TARGET}</span>
+              </div>
+              <div className="match-scoreboard">
+                <article className="match-score">
+                  <span>Player</span>
+                  <strong>{game.matchScore.human}</strong>
                 </article>
-                <article className="fact-stat">
-                  <span>Boneyard</span>
-                  <strong>{game.stock.length}</strong>
-                </article>
-                <article className="fact-stat">
-                  <span>Your pips</span>
-                  <strong>{handPipTotal(game.humanHand)}</strong>
-                </article>
-                <article className="fact-stat">
-                  <span>Target</span>
-                  <strong>{MATCH_TARGET}</strong>
+                <article className="match-score">
+                  <span>CPU</span>
+                  <strong>{game.matchScore.cpu}</strong>
                 </article>
               </div>
-              <p className="rail-note">{moveGuide}</p>
+              <p className="rail-footnote">Session wins {sessionWinsLabel}</p>
             </section>
 
             <section className="rail-card rail-card--activity">
@@ -713,6 +666,24 @@ export default function Home() {
                     <p>{entry}</p>
                   </article>
                 ))}
+              </div>
+            </section>
+
+            <section className="rail-card rail-card--utility">
+              <div className="utility-actions">
+                <button type="button" className="secondary-button" onClick={startNextRound}>
+                  {game.phase === "intermission"
+                    ? game.matchWinner
+                      ? "Start new match"
+                      : "Deal next round"
+                    : "Redeal round"}
+                </button>
+                <button type="button" className="secondary-button" onClick={resetCurrentMatch}>
+                  Reset match
+                </button>
+                <button type="button" className="secondary-button" onClick={resetWins}>
+                  Reset wins
+                </button>
               </div>
             </section>
           </aside>
